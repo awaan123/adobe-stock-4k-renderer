@@ -1,0 +1,158 @@
+name: Parallel 4K 60fps Cloud Rendering Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      codec:
+        description: 'Output Video Codec'
+        required: true
+        default: 'h264'
+        type: choice
+        options:
+          - h264
+          - prores
+      crf:
+        description: 'Constant Rate Factor (CRF 12 for broadcast master)'
+        required: true
+        default: '12'
+        type: string
+      batch_target:
+        description: 'Render Target'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - liquid-chrome
+          - iridescent-silk
+          - obsidian-gold
+          - cyber-grid
+          - champagne-bokeh
+          - dark-concentric
+          - cosmic-nebula
+          - bioluminescent
+          - quantum-waveguide
+          - sacred-geometry
+          - paper-topography
+
+jobs:
+  render-matrix:
+    name: Render ${{ matrix.composition }} (4K 60fps)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        composition:
+          - liquid-chrome
+          - iridescent-silk
+          - obsidian-gold
+          - cyber-grid
+          - champagne-bokeh
+          - dark-concentric
+          - cosmic-nebula
+          - bioluminescent
+          - quantum-waveguide
+          - sacred-geometry
+          - paper-topography
+    steps:
+      - name: Check Filter
+        id: filter
+        run: |
+          if [ "${{ inputs.batch_target }}" = "all" ] || [ "${{ inputs.batch_target }}" = "${{ matrix.composition }}" ]; then
+            echo "run_render=true" >> $GITHUB_OUTPUT
+          else
+            echo "run_render=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Checkout Repository
+        if: steps.filter.outputs.run_render == 'true'
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        if: steps.filter.outputs.run_render == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install System Chromium Dependencies
+        if: steps.filter.outputs.run_render == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libasound2 libatk-bridge2.0-0 libatk1.0-0 libc6 libcairo2 libcups2 \
+            libdbus-1-3 libexpat1 libfontconfig1 libgbm1 libgcc1 libglib2.0-0 \
+            libgtk-3-0 libnspr4 libnss3 libpango-1.0-0 libpangocairo-1.0-0 \
+            libstdc++6 libx11-6 libx11-xcb1 libxcb1 libxcomposite1 libxcursor1 \
+            libxdamage1 libxext6 libxfixes3 libxi6 libxrandr2 libxrender1 \
+            libxss1 libxtst6 ffmpeg
+
+      - name: Install Node Dependencies
+        if: steps.filter.outputs.run_render == 'true'
+        run: npm ci || npm install
+
+      - name: Render 4K 60fps Master Video
+        if: steps.filter.outputs.run_render == 'true'
+        run: |
+          mkdir -p out
+          EXT="${{ inputs.codec == 'prores' && 'mov' || 'mp4' }}"
+          npx remotion render src/index.ts "${{ matrix.composition }}" \
+            "out/${{ matrix.composition }}_4k60fps_loop.${EXT}" \
+            --codec="${{ inputs.codec || 'h264' }}" \
+            --crf="${{ inputs.crf || '12' }}" \
+            --pixel-format=yuv420p \
+            --gl=angle
+
+      - name: Upload Single Video Artifact
+        if: steps.filter.outputs.run_render == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: video-${{ matrix.composition }}
+          path: out/*
+          retention-days: 14
+
+  package-release:
+    name: Package Adobe Stock Master Release Bundle
+    needs: render-matrix
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Dependencies
+        run: npm ci || npm install
+
+      - name: Generate Adobe Stock CSV Metadata
+        run: npx ts-node scripts/generate-metadata.ts
+
+      - name: Download All Rendered Video Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: batch_artifacts
+          pattern: video-*
+          merge-multiple: true
+
+      - name: Bundle Master Package ZIP
+        run: |
+          mkdir -p release_package
+          cp -r batch_artifacts/* release_package/ || true
+          cp adobe_stock_upload.csv release_package/
+          cp dist/metadata/adobe_stock_catalog.json release_package/ || true
+          
+          ZIP_NAME="Loopable_Abstract_Batch_01_4K_Videos_${{ inputs.codec || 'mp4' }}.zip"
+          cd release_package
+          zip -r "../${ZIP_NAME}" ./*
+          cd ..
+          echo "ZIP_NAME=${ZIP_NAME}" >> $GITHUB_ENV
+
+      - name: Upload Complete 1-Click Release ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ZIP_NAME }}
+          path: ${{ env.ZIP_NAME }}
+          retention-days: 30

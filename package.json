@@ -1,0 +1,39 @@
+{
+  "name": "adobe-stock-motion-graphics-pipeline",
+  "version": "1.0.0",
+  "description": "Turnkey commercial-grade 4K 60fps stock motion graphics generation and publishing pipeline for Adobe Stock",
+  "main": "src/index.ts",
+  "scripts": {
+    "start": "remotion preview src/index.ts",
+    "build": "remotion render src/index.ts",
+    "render:all": "ts-node scripts/render-batch.ts --all",
+    "render:single": "ts-node scripts/render-batch.ts --id",
+    "metadata": "ts-node scripts/generate-metadata.ts",
+    "validate": "ts-node scripts/validate-compliance.ts"
+  },
+  "keywords": [
+    "remotion",
+    "motion-graphics",
+    "stock-video",
+    "adobe-stock",
+    "procedural-generation",
+    "4k-60fps",
+    "commercial-video"
+  ],
+  "author": "Autonomous Commercial Motion Studio",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@remotion/cli": "^4.0.218",
+    "@remotion/renderer": "^4.0.218",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "remotion": "^4.0.218"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.5",
+    "@types/react": "^18.3.11",
+    "@types/react-dom": "^18.3.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.6.3"
+  }
+}
